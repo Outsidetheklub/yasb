@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import shutil
 import sys
 from os import makedirs, path
 from typing import Any, cast
@@ -30,9 +31,38 @@ class ConfigValidationError(TypeError):
         self.filepath = filepath
 
 
+def _get_resources_dir() -> str:
+    """Return the path to bundled default config resources."""
+    return path.join(path.dirname(__file__), "resources")
+
+
 def is_first_run() -> bool:
     """Return True when neither config file nor stylesheet exist yet."""
     return not path.isfile(HOME_CONFIG_PATH) and not path.isfile(HOME_STYLES_PATH)
+
+
+def _create_default_configs() -> None:
+    """Copy bundled default config and stylesheet to the user config directory on first run."""
+    resources_dir = _get_resources_dir()
+    default_config = path.join(resources_dir, "config.yaml")
+    default_styles = path.join(resources_dir, "styles.css")
+
+    if not path.isfile(default_config) or not path.isfile(default_styles):
+        logging.warning(
+            "Default config resources not found at %s. Skipping first-run setup.",
+            resources_dir,
+        )
+        return
+
+    makedirs(HOME_CONFIGURATION_DIR, exist_ok=True)
+
+    shutil.copy2(default_config, HOME_CONFIG_PATH)
+    shutil.copy2(default_styles, HOME_STYLES_PATH)
+
+    logging.info(
+        "Created default config and stylesheet at %s",
+        HOME_CONFIGURATION_DIR,
+    )
 
 
 def get_config_dir() -> str:
@@ -141,6 +171,10 @@ def get_stylesheet(show_error_dialog: bool = False) -> str | None:
 
 
 def get_config_and_stylesheet() -> tuple[YasbConfig, str]:
+    # On first run, create default config files from bundled resources.
+    if is_first_run():
+        _create_default_configs()
+
     config = get_config()
     stylesheet = get_stylesheet()
     error_msg: str | None = None
